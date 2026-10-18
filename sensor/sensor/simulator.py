@@ -8,14 +8,17 @@ the acceleration an accelerometer reads, a = F − 2·ζ·ωₙ·v − ωₙ²·
 the white forcing term itself on top of the resonant response; that is intended.
 """
 
+import logging
 import math
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
-from itertools import pairwise
+from itertools import islice, pairwise
 
 import numpy as np
 
 from sensor.config import Fault, SensorConfig
+
+log = logging.getLogger(__name__)
 
 # RK4 on an oscillator goes unstable near ωₙ·dt ≈ 2.8 and loses accuracy well
 # before that; 1.0 keeps a wide margin (the defaults give 0.41 during a fault).
@@ -148,3 +151,10 @@ def _generate(cfg: SensorConfig, windows: tuple[_FaultWindow, ...]) -> Iterator[
             displacement, velocity, forcing, angular_freq, damping_ratio, step_s
         )
         sample_index += 1
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    cfg = SensorConfig.from_env()
+    for sample in islice(simulate(cfg, [cfg.default_fault()]), cfg.sample_rate_hz):
+        log.info(sample)

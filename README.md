@@ -23,7 +23,7 @@ The project is built one feature at a time; the order is in [`docs/PLAN.md`](doc
 
 | Service | Today | Docs |
 |---|---|---|
-| sensor | Oscillator simulator with fault injection; `python -m sensor` writes samples as CSV. MQTT publishing not yet built. | [sensor/README.md](sensor/README.md) |
+| sensor | Oscillator simulator with fault injection; `python -m sensor.simulator` prints one second of samples. MQTT publishing not yet built. | [sensor/README.md](sensor/README.md) |
 | processing | Not yet built. | |
 | sync | Not yet built. | |
 

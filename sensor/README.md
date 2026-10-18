@@ -6,33 +6,17 @@ window.
 
 ## Usage
 
-### Command line
-
-`python -m sensor` simulates a stretch of stream time and writes the samples as CSV to
-stdout. Log messages go to stderr, so redirecting stdout gives a clean data file.
+Print one second of samples with the configuration from the environment:
 
 ```sh
 cd sensor
 uv sync
-uv run python -m sensor --seconds 2 > samples.csv
-SENSOR_SEED=3 SENSOR_FAULT_START=0.5 uv run python -m sensor --seconds 1 | head
-uv run python -m sensor --no-fault --seconds 5
+uv run python -m sensor.simulator
+SENSOR_SEED=3 SENSOR_FAULT_START=0.5 uv run python -m sensor.simulator
 ```
 
-```
-t,accel,in_fault
-0.000,0.125730,0
-0.001,-0.142018,0
-...
-```
-
-`--seconds` is stream time, not wall time: there is no pacing, so it runs as fast as
-the CPU allows.
-
-### From Python
-
-`simulate()` is a generator that yields one `Sample(t, accel, in_fault)` at a time,
-forever. The caller decides how much to take:
+In your own code, `simulate()` is a generator that yields one
+`Sample(t, accel, in_fault)` at a time, forever. The caller decides how much to take:
 
 ```python
 from itertools import islice
@@ -131,5 +115,4 @@ The tests cover:
 - `in_fault` being true exactly in `[20, 30)`
 - exact fault windows even when `start + duration` isn't exact in floating point
 - rejection of invalid, overlapping, too-short or too-fast faults
-- the command line: CSV format, sample count, fault flag, `--no-fault`
 - reading the configuration from the environment
