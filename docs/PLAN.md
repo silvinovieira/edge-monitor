@@ -2,6 +2,8 @@
 
 One branch and one PR per feature, in this order. Each feature introduces only what it
 uses. Every PR passes ruff and pytest in CI and updates the README.
+Service-specific README sections go in `<service>/README.md`; cross-cutting ones
+(overview, end-to-end, design decisions, production) go in the root `README.md`.
 PR description headings: What and why, How to test, Key decisions, Not included,
 Talking points.
 

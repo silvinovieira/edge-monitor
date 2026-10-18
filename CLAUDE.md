@@ -83,8 +83,9 @@ ingestion.
    named in `docs/PLAN.md`.
 2. **Explain the plan:** files to create or change, approach, and any decision not already
    in `docs/PLAN.md`. Wait for "go".
-3. **Implement only this feature.** Update `README.md` with the sections listed for this
-   feature in `docs/PLAN.md`, using real measured numbers where relevant. Never describe
+3. **Implement only this feature.** Update the READMEs with the sections listed for this
+   feature in `docs/PLAN.md` (service-specific in `<service>/README.md`, cross-cutting in
+   the root `README.md`), using real measured numbers where relevant. Never describe
    features that don't exist yet. Then run, for every service touched:
    `uv run ruff check .`, `uv run ruff format --check .`, `uv run pytest -q`.
    Show the output. Everything must pass.
