@@ -63,9 +63,20 @@ def test_no_faults_means_never_in_fault():
     assert not any(s.in_fault for s in _run(CFG, 1, faults=()))
 
 
-def test_fault_contains_is_half_open():
-    fault = Fault(start=1.0, duration=2.0)
-    assert fault.contains(1.0) and fault.contains(2.999) and not fault.contains(3.0)
+def test_fault_window_is_exact_for_inexact_float_sums():
+    # 0.2 + 0.1 == 0.30000000000000004: the sample at t = 0.3 must stay outside.
+    samples = _run(CFG, 0.5, faults=(Fault(start=0.2, duration=0.1),))
+    flagged = [i for i, s in enumerate(samples) if s.in_fault]
+    assert flagged == list(range(200, 300))
+
+
+def test_adjacent_inexact_faults_are_not_an_overlap():
+    simulate(CFG, [Fault(start=0.2, duration=0.1), Fault(start=0.3, duration=0.1)])
+
+
+def test_fault_shorter_than_one_sample_is_rejected():
+    with pytest.raises(ValueError, match="shorter than one sample"):
+        simulate(CFG, [Fault(start=1.0, duration=0.0001)])
 
 
 @pytest.mark.parametrize(

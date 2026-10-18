@@ -73,21 +73,43 @@ def _rk4_step(
     return displacement, velocity
 
 
-def _validate_faults(cfg: SensorConfig, faults: Sequence[Fault]) -> None:
-    max_freq_scale = max([1.0, *(f.freq_scale for f in faults)])
+@dataclass(frozen=True)
+class _FaultWindow:
+    """A fault mapped to sample indices: active for first <= index < end."""
+
+    first: int
+    end: int
+    fault: Fault
+
+
+def _to_windows(cfg: SensorConfig, faults: Sequence[Fault]) -> tuple[_FaultWindow, ...]:
+    # Compare integer sample indices, never float times: 0.2 + 0.1 is
+    # 0.30000000000000004, which would wrongly put the sample at t = 0.3 inside.
+    # Boundaries between samples round to the nearest sample.
+    rate = cfg.sample_rate_hz
+    return tuple(
+        _FaultWindow(round(f.start * rate), round(f.end * rate), f) for f in faults
+    )
+
+
+def _validate(cfg: SensorConfig, windows: Sequence[_FaultWindow]) -> None:
+    max_freq_scale = max([1.0, *(w.fault.freq_scale for w in windows)])
     angular_freq = 2.0 * math.pi * cfg.natural_freq_hz * max_freq_scale
     if angular_freq / cfg.sample_rate_hz > MAX_ANGULAR_FREQ_X_STEP:
         raise ValueError("sample rate too low for the (faulted) natural frequency")
-    ordered = sorted(faults, key=lambda f: f.start)
+    for window in windows:
+        if window.end <= window.first:
+            raise ValueError(f"fault shorter than one sample: {window.fault}")
+    ordered = sorted(windows, key=lambda w: w.first)
     for earlier, later in pairwise(ordered):
-        if later.start < earlier.end:
-            raise ValueError(f"overlapping faults: {earlier} and {later}")
+        if later.first < earlier.end:
+            raise ValueError(f"overlapping faults: {earlier.fault} and {later.fault}")
 
 
-def _active_fault(faults: Sequence[Fault], t: float) -> Fault | None:
-    for fault in faults:
-        if fault.contains(t):
-            return fault
+def _active_fault(windows: Sequence[_FaultWindow], sample_index: int) -> Fault | None:
+    for window in windows:
+        if window.first <= sample_index < window.end:
+            return window.fault
     return None
 
 
@@ -95,11 +117,12 @@ def simulate(cfg: SensorConfig, faults: Sequence[Fault] = ()) -> Iterator[Sample
     """Yield samples forever, one at a time; the caller decides when to stop."""
     # Validate here, not in the generator body, so bad input fails at the call
     # instead of on the first next().
-    _validate_faults(cfg, faults)
-    return _generate(cfg, tuple(faults))
+    windows = _to_windows(cfg, faults)
+    _validate(cfg, windows)
+    return _generate(cfg, windows)
 
 
-def _generate(cfg: SensorConfig, faults: tuple[Fault, ...]) -> Iterator[Sample]:
+def _generate(cfg: SensorConfig, windows: tuple[_FaultWindow, ...]) -> Iterator[Sample]:
     noise = np.random.default_rng(cfg.seed)
     step_s = 1.0 / cfg.sample_rate_hz
     natural_angular_freq = 2.0 * math.pi * cfg.natural_freq_hz
@@ -108,7 +131,7 @@ def _generate(cfg: SensorConfig, faults: tuple[Fault, ...]) -> Iterator[Sample]:
     while True:
         # Time from the integer index, so it never drifts from accumulating step_s.
         t = sample_index / cfg.sample_rate_hz
-        active_fault = _active_fault(faults, t)
+        active_fault = _active_fault(windows, sample_index)
         angular_freq, damping_ratio = natural_angular_freq, cfg.damping_ratio
         if active_fault is not None:
             angular_freq *= active_fault.freq_scale

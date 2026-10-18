@@ -36,9 +36,6 @@ class Fault:
     def end(self) -> float:
         return self.start + self.duration
 
-    def contains(self, t: float) -> bool:
-        return self.start <= t < self.end
-
 
 @dataclass(frozen=True)
 class SensorConfig:
