@@ -6,13 +6,15 @@ window.
 
 ## Usage
 
-Print one second of samples with the configuration from the environment:
+Print samples with the configuration from the environment (by default, the first
+second):
 
 ```sh
 cd sensor
 uv sync
 uv run python -m sensor.simulator
-SENSOR_SEED=3 SENSOR_FAULT_START=0.5 uv run python -m sensor.simulator
+# 20 ms around the start of the default fault at t = 20 s
+SENSOR_PRINT_FROM=19.99 SENSOR_PRINT_SECONDS=0.02 uv run python -m sensor.simulator
 ```
 
 In your own code, `simulate()` is a generator that yields one
@@ -47,6 +49,14 @@ in pure Python on one laptop core), far above the 1 kHz real-time rate.
 | `SENSOR_FAULT_DURATION` | 10 | fault duration (s) |
 | `SENSOR_FAULT_FREQ_SCALE` | 1.3 | natural frequency multiplier during the fault |
 | `SENSOR_FAULT_DAMPING_SCALE` | 0.5 | damping ratio multiplier during the fault |
+
+`python -m sensor.simulator` also reads two output settings. They choose what to print
+and aren't part of the sensor model, so they stay out of `SensorConfig`:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SENSOR_PRINT_FROM` | 0 | first sample time to print (s) |
+| `SENSOR_PRINT_SECONDS` | 1 | how much to print (s) |
 
 `simulate()` checks its input when called, before the first sample:
 - Fault boundaries are converted to sample indices (rounded to the nearest sample).
@@ -116,3 +126,4 @@ The tests cover:
 - exact fault windows even when `start + duration` isn't exact in floating point
 - rejection of invalid, overlapping, too-short or too-fast faults
 - reading the configuration from the environment
+- `main()` printing exactly the requested time range

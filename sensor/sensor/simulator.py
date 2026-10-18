@@ -16,7 +16,7 @@ from itertools import islice, pairwise
 
 import numpy as np
 
-from sensor.config import Fault, SensorConfig
+from sensor.config import Fault, SensorConfig, env_float
 
 log = logging.getLogger(__name__)
 
@@ -153,8 +153,17 @@ def _generate(cfg: SensorConfig, windows: tuple[_FaultWindow, ...]) -> Iterator[
         sample_index += 1
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Log the samples in [SENSOR_PRINT_FROM, + SENSOR_PRINT_SECONDS) seconds."""
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     cfg = SensorConfig.from_env()
-    for sample in islice(simulate(cfg, [cfg.default_fault()]), cfg.sample_rate_hz):
+    # Sample indices, rounded like fault boundaries, so the printed range is exact.
+    first = round(env_float("SENSOR_PRINT_FROM", 0.0) * cfg.sample_rate_hz)
+    count = round(env_float("SENSOR_PRINT_SECONDS", 1.0) * cfg.sample_rate_hz)
+    samples = simulate(cfg, [cfg.default_fault()])
+    for sample in islice(samples, first, first + count):
         log.info(sample)
+
+
+if __name__ == "__main__":
+    main()
