@@ -33,7 +33,6 @@ The project is built one feature at a time; the order is in [`docs/PLAN.md`](doc
 sensor/                    uv project: vibration sensor simulator
 docs/
   PLAN.md                  feature order
-  contract/fixtures/       shared test data (seed_{0..4}.npz)
 .github/workflows/ci.yml   ruff + pytest for each service
 ```
 
@@ -60,10 +59,6 @@ request.
   and lockfile, and never imports another service. They can be deployed, versioned and
   tested separately. The cost is some duplicated boilerplate (config loading, logging
   setup).
-- **Shared files are the contract.** The only things services share are files under
-  `docs/contract/`. Today that's the simulator fixtures, which give the processing tests
-  deterministic input without importing the sensor. Any change to those files must
-  update their consumers in the same change.
 - **Determinism everywhere.** All randomness goes through a seeded
   `numpy.random.Generator`, so every run and test is reproducible.
 

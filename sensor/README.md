@@ -26,38 +26,45 @@ uv sync
 SENSOR_SEED=3 uv run python your_script.py
 ```
 
-The simulator does no pacing: it runs as fast as the CPU allows (about 260k–300k
-samples/s in pure Python on one laptop core), far above the 1 kHz real-time rate.
+The simulator does no pacing: it runs as fast as the CPU allows (about 230k samples/s
+in pure Python on one laptop core), far above the 1 kHz real-time rate.
 
 ## Configuration
 
-Read from environment variables by `SensorConfig.from_env()` into a frozen dataclass.
+`SensorConfig.from_env()` reads these environment variables into a frozen dataclass:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `SENSOR_FS` | 1000 | sample rate (Hz) |
-| `SENSOR_F_N_HZ` | 50 | natural frequency fₙ (Hz) |
-| `SENSOR_ZETA` | 0.05 | damping ratio ζ |
-| `SENSOR_NOISE_STD` | 1.0 | σ of the forcing noise |
+| `SENSOR_SAMPLE_RATE_HZ` | 1000 | sample rate (Hz) |
+| `SENSOR_NATURAL_FREQ_HZ` | 50 | natural frequency fₙ (Hz) |
+| `SENSOR_DAMPING_RATIO` | 0.05 | damping ratio ζ |
+| `SENSOR_NOISE_STD` | 1.0 | σ of the forcing, per sample |
 | `SENSOR_SEED` | 0 | seed of the `numpy.random.Generator` |
 | `SENSOR_FAULT_START` | 20 | fault start (s) |
 | `SENSOR_FAULT_DURATION` | 10 | fault duration (s) |
-| `SENSOR_FAULT_OMEGA_SCALE` | 1.3 | ωₙ multiplier during the fault |
-| `SENSOR_FAULT_ZETA_SCALE` | 0.5 | ζ multiplier during the fault |
+| `SENSOR_FAULT_FREQ_SCALE` | 1.3 | natural frequency multiplier during the fault |
+| `SENSOR_FAULT_DAMPING_SCALE` | 0.5 | damping ratio multiplier during the fault |
 
-`SensorConfig` rejects any `fs` where ωₙ·dt > 1 (including the faulted ωₙ), to keep
-RK4 well inside its stability limit and accurate.
+`simulate()` checks its input when called, before the first sample:
+- It rejects overlapping faults.
+- It rejects any configuration where ωₙ·dt > 1, including the faulted ωₙ, to stay well
+  inside RK4's stability limit. With the defaults, ωₙ·dt is 0.41 during the fault.
+- `Fault` itself rejects a negative start, a non-positive duration, and scales that are
+  out of range.
 
 ## Model
 
     x''(t) + 2·ζ·ωₙ·x'(t) + ωₙ²·x(t) = F(t),    ωₙ = 2π·fₙ,   F ~ N(0, σ²)
 
-The state `[x, v]` is integrated with classic RK4 at `dt = 1/fs`. Each sample is the
-acceleration an accelerometer would measure:
+x is displacement, ωₙ the angular natural frequency, ζ the damping ratio and F the
+forcing. The state `[displacement, velocity]` is integrated with classic RK4 at
+`dt = 1/sample_rate_hz`. Each sample is the acceleration an accelerometer would measure:
 
     a = F − 2·ζ·ωₙ·v − ωₙ²·x
 
-**Fault injection.** A `Fault(start, duration, omega_scale, zeta_scale)` covers the
+So each sample contains the white forcing term itself on top of the resonant response.
+
+**Fault injection.** A `Fault(start, duration, freq_scale, damping_scale)` covers the
 half-open window `[start, start + duration)`. Inside it, ωₙ and ζ are scaled. Outside
 it, they return to baseline. The default fault moves the resonance from 50 Hz to 65 Hz
 and halves the damping, which models a stiffness change (for example a loosened or
@@ -72,28 +79,20 @@ sample.
 | fault (21–30 s) | 64–65 Hz | 2.16–2.35 |
 
 **Assumptions and choices**
-- `F` is drawn once per step and held constant across the four RK4 stages, so the noise
-  acts as a zero-order-hold input. Drawing it separately for each stage would change its
-  effective variance.
-- Time comes from the sample index (`t = n / fs`), not from summing `dt`, so fault
-  boundaries land on exact samples (20 000 and 30 000 at 1 kHz).
-- Sample `n` is `x''` at `t_n`. It uses the state at `t_n` and that step's force, and
+- The forcing is drawn once per step and held constant across the four RK4 stages, so
+  it acts as a zero-order-hold input. Drawing it separately for each stage would change
+  its effective variance.
+- `noise_std` is per sample and isn't rescaled with the step length. Changing the
+  sample rate therefore changes the response level. That's acceptable because the rate
+  is fixed for the whole run. A continuous noise intensity scaled by 1/√dt would remove
+  that coupling.
+- Time comes from the sample index (`t = sample_index / sample_rate_hz`), not from
+  summing `dt`, so fault boundaries land on exact samples (20 000 and 30 000 at 1 kHz).
+- Sample n is `x''` at `t_n`. It uses the state at `t_n` and that step's forcing, and
   then the state advances. The oscillator starts at rest. The decay time 1/(ζωₙ) is
   ≈ 64 ms, so the start-up transient is gone within a few hundred ms.
 - When the parameters change at a fault boundary, the state carries over continuously.
   The physical system changes, but it doesn't jump.
-
-## Fixtures
-
-`scripts/make_fixtures.py` writes `docs/contract/fixtures/seed_{0..4}.npz`: 40 s per
-seed, with the default fault at 20–30 s. Each file holds `accel` (float32, 40 000
-samples), `fault_windows` (`[[start, end)]`, float64), `fs` and `seed`. It always uses
-the default parameters and ignores `SENSOR_*` variables, because other services' tests
-depend on these files.
-
-```sh
-uv run python scripts/make_fixtures.py
-```
 
 ## Development
 
@@ -103,5 +102,10 @@ uv run ruff format --check .
 uv run pytest -q
 ```
 
-The tests cover determinism (same seed gives identical output), the FFT peak (≈ 50 Hz
-at baseline, ≈ 65 Hz in the fault), and `in_fault` being true exactly in `[20, 30)`.
+The tests cover:
+- determinism: the same seed gives identical output, and a different seed gives
+  different output
+- the FFT peak: ≈ 50 Hz at baseline and ≈ 65 Hz in the fault
+- `in_fault` being true exactly in `[20, 30)`
+- rejection of invalid, overlapping or too-fast faults
+- reading the configuration from the environment
