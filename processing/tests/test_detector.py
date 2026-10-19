@@ -2,7 +2,7 @@ import pytest
 
 from processing.config import ProcessingConfig
 from processing.detector import Detector, RunningStats
-from processing.evaluate import evaluate
+from processing.evaluate import Evaluator, evaluate
 from processing.features import Features
 from processing.processor import process
 
@@ -61,3 +61,13 @@ def test_detector_finds_the_fault_in_every_recording(recordings):
     mean_recall = sum(e.recall for e in evaluations) / len(evaluations)
     assert mean_precision >= 0.8
     assert mean_recall >= 0.8
+
+
+def test_incremental_evaluator_matches_evaluate(recordings):
+    recording = recordings[0]
+    results = list(process([recording["acceleration"].astype(float)], CFG))
+    start, stop = int(recording["fault_start"]), int(recording["fault_stop"])
+    evaluator = Evaluator(start, stop, CFG)
+    for result in results:
+        evaluator.add(result)
+    assert evaluator.get_evaluation() == evaluate(results, start, stop, CFG)

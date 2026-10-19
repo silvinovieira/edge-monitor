@@ -34,3 +34,11 @@ def test_spool_settings_from_env(monkeypatch, tmp_path):
 def test_invalid_spool_settings_are_rejected(kwargs):
     with pytest.raises(ValueError):
         ProcessingConfig(**kwargs)
+
+
+def test_mqtt_settings_from_env(monkeypatch):
+    monkeypatch.setenv("PROCESSING_MQTT_HOST", "mosquitto")
+    monkeypatch.setenv("PROCESSING_EVALUATE", "true")
+    cfg = ProcessingConfig.from_env()
+    assert cfg.mqtt_host == "mosquitto" and cfg.mqtt_port == 1883
+    assert cfg.evaluate and cfg.queue_size == 1000

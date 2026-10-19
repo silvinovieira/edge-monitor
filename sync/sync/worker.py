@@ -41,7 +41,9 @@ class Worker:
             self._failures += 1
             delay_s = self.get_backoff_s(self._failures)
             log.warning(
-                "%d failures in a row; retrying in %.1f s", self._failures, delay_s
+                "failed %d time(s) in a row; retrying in %.1f s",
+                self._failures,
+                delay_s,
             )
             # Event.wait instead of sleep, so a shutdown doesn't wait for it.
             self._stop.wait(delay_s)

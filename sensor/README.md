@@ -25,7 +25,15 @@ pip install -e .
 
 ## Usage
 
-Print one second of samples with the configuration from the environment:
+Publish the stream over MQTT in real time, to a broker on `localhost:1883` (or
+`SENSOR_MQTT_HOST`), until Ctrl-C or SIGTERM:
+
+```sh
+uv run python -m sensor
+```
+
+Or print one second of samples without MQTT, with the configuration from the
+environment:
 
 ```sh
 uv run python -m sensor.simulator
@@ -65,6 +73,9 @@ on one core), far above the 1 kHz real-time rate.
 | `SENSOR_FAULT_DURATION` | 10 | fault duration (s) |
 | `SENSOR_FAULT_FREQ_SCALE` | 1.3 | natural frequency multiplier during the fault |
 | `SENSOR_FAULT_DAMPING_SCALE` | 0.5 | damping ratio multiplier during the fault |
+| `SENSOR_ID` | sensor-1 | sensor name in the MQTT topics |
+| `SENSOR_MQTT_HOST` | localhost | MQTT broker host |
+| `SENSOR_MQTT_PORT` | 1883 | MQTT broker port |
 
 `simulate()` checks its input when called, before the first sample:
 - Fault boundaries are converted to sample indices (rounded to the nearest sample).
@@ -120,6 +131,35 @@ disagree.
 - When the parameters change at a fault boundary, the state carries over continuously.
   The physical system changes, but it doesn't jump.
 
+## MQTT
+
+| Topic | QoS | Retained | Payload |
+|---|---|---|---|
+| `sensors/<id>/samples` | 1 | no | `{"sensor_id", "seq", "t0_ns", "dt_s", "values": [50 floats]}` |
+| `sensors/<id>/truth` | 1 | yes | `{"faults": [{"start_sample": 20000, "stop_sample": 30000}]}` |
+
+- **Chunks of 50 samples (50 ms).** One message per sample would be 1000 messages/s,
+  with MQTT and JSON overhead far bigger than one float. 20 messages/s keeps the
+  overhead small and adds at most 50 ms of latency, against a detector that reacts in
+  hundreds of milliseconds. `seq` counts chunks, so the receiver can spot gaps. `t0_ns`
+  is the wall-clock time of the chunk's first sample.
+- **QoS 1 (at least once).** QoS 0 would silently lose chunks on a reconnect, and QoS 2
+  costs two extra round trips per message for exactly-once, which a gap check already
+  covers well enough. A duplicate would show up as a `seq` that repeats.
+- **A separate, retained truth topic.** The ground truth isn't part of the signal: a
+  real sensor doesn't know when it is faulty. Keeping it on its own topic means the
+  detector can't see it by accident, since processing subscribes to it only when
+  evaluation is turned on, and only the evaluator reads it. It's sent once as sample
+  ranges, and retained, so a subscriber that connects later still gets it. Sample
+  ranges are exact even when a fault boundary falls inside a chunk.
+- **Real-time pacing with absolute deadlines.** Chunk n is published when its last
+  sample would exist: at `t0_ns` of the chunk plus 50 ms. The wait is computed from
+  the wall clock each time, so time spent simulating or publishing never accumulates
+  into drift. In the compose run, chunk 0 → 200 took exactly 10.0 s.
+- **Broker outages.** paho connects and reconnects in the background and buffers up to
+  1000 chunks (50 s) while the broker is unreachable. Beyond that, new chunks are
+  dropped and logged rather than letting memory grow.
+
 ## Fixtures
 
 `scripts/make_fixtures.py` records 40 s of the default configuration for seeds 0-4
@@ -144,6 +184,9 @@ uv run pytest -q
 ```
 
 The tests cover:
+- MQTT messages: consecutive chunks of 50 with the right `seq`, `t0_ns` and fields; the
+  truth as sample ranges; pacing to absolute deadlines without drift, catching up at
+  once when late, and stopping on request
 - determinism: the same seed gives identical output, and a different seed gives
   different output
 - the FFT peak: ≈ 50 Hz at baseline and ≈ 65 Hz in the fault

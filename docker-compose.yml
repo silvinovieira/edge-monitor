@@ -1,0 +1,50 @@
+# The whole pipeline on one machine: sensor → MQTT → processing → spool → sync → S3.
+# Run: docker compose up --build
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0.20
+    ports: ["1883:1883"]
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+
+  localstack:
+    # Pinned to the version this project was tested with.
+    image: localstack/localstack:4.0.3
+    ports: ["4566:4566"]
+    environment:
+      SERVICES: s3
+
+  sensor:
+    build: ./sensor
+    depends_on: [mosquitto]
+    environment:
+      SENSOR_MQTT_HOST: mosquitto
+
+  processing:
+    build: ./processing
+    depends_on: [mosquitto]
+    # Processing never talks to S3: its only output is the spool volume.
+    environment:
+      PROCESSING_MQTT_HOST: mosquitto
+      PROCESSING_SPOOL_DIR: /spool
+      PROCESSING_EVALUATE: "true"
+    volumes:
+      - spool:/spool
+
+  sync:
+    build: ./sync
+    depends_on: [localstack]
+    environment:
+      SYNC_SPOOL_DIR: /spool
+      SYNC_ENDPOINT_URL: http://localstack:4566
+      SYNC_CREATE_BUCKET: "true"
+      # LocalStack accepts any credentials.
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    volumes:
+      - spool:/spool
+
+volumes:
+  spool:
+  mosquitto-data:

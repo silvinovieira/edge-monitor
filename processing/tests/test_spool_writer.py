@@ -9,6 +9,7 @@ from processing.spool_writer import SpoolWriter, encode_batch
 BATCH = Batch(
     file_name="1767225600000000000_sensor-1.jsonl.gz",
     lines=[{"type": "header", "version": 1}, {"type": "window", "rms": 1.5}],
+    windows=[],
 )
 
 

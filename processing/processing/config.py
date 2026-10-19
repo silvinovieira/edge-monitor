@@ -16,6 +16,11 @@ def _get_env_int(name: str, default: int) -> int:
     return default if value is None or value == "" else int(value)
 
 
+def _get_env_bool(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    return default if value is None or value == "" else value.lower() in {"1", "true"}
+
+
 @dataclass(frozen=True)
 class ProcessingConfig:
     sample_rate_hz: int = 1000
@@ -33,6 +38,13 @@ class ProcessingConfig:
     batch_s: int = 60
     # Rate of the downsampled samples stored in each batch.
     summary_rate_hz: int = 10
+    mqtt_host: str = "localhost"
+    mqtt_port: int = 1883
+    # Messages waiting between the MQTT thread and the loop; 1000 chunks of 50
+    # samples is 50 s of data. When full, the oldest message is dropped.
+    queue_size: int = 1000
+    # Subscribe to the ground truth and log precision/recall at shutdown.
+    evaluate: bool = False
 
     def __post_init__(self) -> None:
         if min(self.sample_rate_hz, self.window_size, self.hop_size) <= 0:
@@ -76,4 +88,8 @@ class ProcessingConfig:
             summary_rate_hz=_get_env_int(
                 "PROCESSING_SUMMARY_RATE_HZ", cls.summary_rate_hz
             ),
+            mqtt_host=os.environ.get("PROCESSING_MQTT_HOST") or cls.mqtt_host,
+            mqtt_port=_get_env_int("PROCESSING_MQTT_PORT", cls.mqtt_port),
+            queue_size=_get_env_int("PROCESSING_QUEUE_SIZE", cls.queue_size),
+            evaluate=_get_env_bool("PROCESSING_EVALUATE", cls.evaluate),
         )
