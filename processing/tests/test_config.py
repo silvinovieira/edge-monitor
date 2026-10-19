@@ -17,3 +17,20 @@ def test_warmup_is_counted_in_windows():
 def test_invalid_config_is_rejected():
     with pytest.raises(ValueError):
         ProcessingConfig(hop_size=0)
+
+
+def test_spool_settings_from_env(monkeypatch, tmp_path):
+    monkeypatch.setenv("PROCESSING_SENSOR_ID", "pump-7")
+    monkeypatch.setenv("PROCESSING_SPOOL_DIR", str(tmp_path))
+    cfg = ProcessingConfig.from_env()
+    assert cfg.sensor_id == "pump-7" and cfg.spool_dir == tmp_path
+    assert cfg.batch_samples == 60_000 and cfg.samples_per_point == 100
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"sensor_id": "pump_7"}, {"sensor_id": ""}, {"batch_s": 1, "summary_rate_hz": 3}],
+)
+def test_invalid_spool_settings_are_rejected(kwargs):
+    with pytest.raises(ValueError):
+        ProcessingConfig(**kwargs)

@@ -2,8 +2,10 @@
 
 Usage (from processing/): uv run python scripts/benchmark.py
 
-Feeds 10 minutes of stream time (the five 40 s fixtures, looped) through
-`process()` as fast as possible, in chunks of 50 samples like the MQTT feed.
+Feeds 10 minutes of stream time (the five 40 s fixtures, looped) through the
+whole loop as fast as possible, in chunks of 50 samples like the MQTT feed:
+processing, batching and gzip encoding. Disk writes are left out, because their
+cost depends on the storage, not on this code.
 """
 
 import logging
@@ -14,8 +16,9 @@ from pathlib import Path
 
 import numpy as np
 
+from processing.batcher import make_batches
 from processing.config import ProcessingConfig
-from processing.processor import process
+from processing.spool_writer import encode_batch
 
 STREAM_S = 600
 CHUNK_SIZE = 50
@@ -44,8 +47,8 @@ def get_rss_mb() -> float:
 
 def run(chunks: list[np.ndarray], cfg: ProcessingConfig) -> None:
     stream = islice(cycle(chunks), STREAM_S * cfg.sample_rate_hz // CHUNK_SIZE)
-    for _ in process(stream, cfg):
-        pass
+    for batch in make_batches(stream, cfg, stream_start_ns=0):
+        encode_batch(batch)
 
 
 def main() -> None:
