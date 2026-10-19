@@ -4,13 +4,30 @@ Simulated vibration sensor: an accelerometer on a machine modelled as a noise-dr
 damped harmonic oscillator, with injectable faults that give a known ground-truth
 window.
 
+## Installation
+
+Needs Python 3.12 and [uv](https://docs.astral.sh/uv/). `uv sync` creates `.venv`
+and installs the package with the dependencies from `pyproject.toml`, pinned by
+`uv.lock` (including the dev group: pytest, ruff):
+
+```sh
+cd sensor
+uv sync
+```
+
+Without uv, an editable pip install from `pyproject.toml` works too (no dev tools):
+
+```sh
+cd sensor
+python3.12 -m venv .venv && . .venv/bin/activate
+pip install -e .
+```
+
 ## Usage
 
 Print one second of samples with the configuration from the environment:
 
 ```sh
-cd sensor
-uv sync
 uv run python -m sensor.simulator
 SENSOR_SEED=3 SENSOR_FAULT_START=0.5 uv run python -m sensor.simulator
 ```
