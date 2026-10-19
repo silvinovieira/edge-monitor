@@ -33,7 +33,7 @@ SENSOR_SEED=3 SENSOR_FAULT_START=0.5 uv run python -m sensor.simulator
 ```
 
 In your own code, `simulate()` is a generator that yields one
-`Sample(t, accel, in_fault)` at a time, forever. The caller decides how much to take:
+`Sample(t, accel)` at a time, forever. The caller decides how much to take:
 
 ```python
 from itertools import islice
@@ -91,8 +91,10 @@ So each sample contains the white forcing term itself on top of the resonant res
 half-open window `[start, start + duration)`. Inside it, ωₙ and ζ are scaled. Outside
 it, they return to baseline. The default fault moves the resonance from 50 Hz to 65 Hz
 and halves the damping, which models a stiffness change (for example a loosened or
-cracked mount) with less energy dissipation. `in_fault` is the ground truth for each
-sample.
+cracked mount) with less energy dissipation. Samples carry no fault label: the ground
+truth comes from `get_fault_ranges(cfg, faults)`, which returns the sample indices each
+fault covers. The simulator applies faults from the same ranges, so the two can't
+disagree.
 
 **Measured behaviour** (default parameters, seeds 0–4, averaged 1 s Hann periodograms):
 
@@ -129,7 +131,7 @@ The tests cover:
 - determinism: the same seed gives identical output, and a different seed gives
   different output
 - the FFT peak: ≈ 50 Hz at baseline and ≈ 65 Hz in the fault
-- `in_fault` being true exactly in `[20, 30)`
-- exact fault windows even when `start + duration` isn't exact in floating point
+- the default fault covering exactly samples `[20 000, 30 000)`
+- exact fault ranges even when `start + duration` isn't exact in floating point
 - rejection of invalid, overlapping, too-short or too-fast faults
 - reading the configuration from the environment

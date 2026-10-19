@@ -18,8 +18,9 @@ Talking points.
 - `sensor/sensor/config.py`: frozen dataclass from env vars. Defaults: `fs=1000`,
   `f_n_hz=50`, `zeta=0.05`, `noise_std=1.0`, `seed=0`, fault `start=20`, `duration=10`,
   `omega_scale=1.3`, `zeta_scale=0.5`.
-- `sensor/sensor/simulator.py`: `Sample(t, accel, in_fault)`;
-  `simulate(cfg, faults) -> Iterator[Sample]`.
+- `sensor/sensor/simulator.py`: `Sample(t, accel)`;
+  `simulate(cfg, faults) -> Iterator[Sample]`; ground truth from
+  `get_fault_ranges(cfg, faults)` (sample indices per fault).
   - RK4 on `[x, v]`, `dt = 1/fs`; `F ~ N(0, noise_std)` drawn once per step, held
     constant across the 4 stages.
   - Fault windows half-open `[start, start + duration)`; inside, scale `omega` and `zeta`.
@@ -28,7 +29,7 @@ Talking points.
   fault windows) to `docs/contract/fixtures/`. Commit the fixtures.
 
 **Tests:** same seed → identical output; FFT peak ≈ 50 Hz at baseline, ≈ 65 Hz in the
-fault; `in_fault` true exactly in `[20, 30)`.
+fault; fault ranges exactly `[20, 30)`.
 
 **README:** project overview (three services, one paragraph); repository layout;
 how to run the tests; sensor model (equation, parameters, fault injection, assumptions).

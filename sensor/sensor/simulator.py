@@ -29,7 +29,6 @@ MAX_RADIANS_PER_STEP = 1.0
 class Sample:
     t: float
     accel: float
-    in_fault: bool
 
 
 def _get_acceleration(
@@ -57,10 +56,14 @@ def _step_rk4(state: np.ndarray, step_s: float, *params: float) -> np.ndarray:
     return state + step_s / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
 
-def _get_fault_ranges(
+def get_fault_ranges(
     cfg: SensorConfig, faults: Sequence[Fault]
 ) -> list[tuple[range, Fault]]:
-    """Map each fault to the sample indices it covers, sorted and validated."""
+    """Map each fault to the sample indices it covers, sorted and validated.
+
+    This is also the ground truth: sample i is faulted exactly when i is in one of
+    the ranges, because the simulator applies faults from these same ranges.
+    """
     # Integer sample indices, never float times: 0.2 + 0.1 is 0.30000000000000004,
     # which would wrongly put the sample at t = 0.3 inside.
     rate = cfg.sample_rate_hz
@@ -95,7 +98,7 @@ def simulate(cfg: SensorConfig, faults: Sequence[Fault] = ()) -> Iterator[Sample
     # Validate here, not in the generator, so bad input fails at the call
     # instead of on the first next().
     _check_sample_rate(cfg, faults)
-    return _generate_samples(cfg, _get_fault_ranges(cfg, faults))
+    return _generate_samples(cfg, get_fault_ranges(cfg, faults))
 
 
 def _generate_samples(
@@ -116,7 +119,6 @@ def _generate_samples(
         yield Sample(
             t=index / cfg.sample_rate_hz,
             accel=_get_acceleration(state, *params),
-            in_fault=fault is not None,
         )
         state = _step_rk4(state, step_s, *params)
 

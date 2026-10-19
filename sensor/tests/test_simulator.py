@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from sensor.config import Fault, SensorConfig
-from sensor.simulator import Sample, simulate
+from sensor.simulator import Sample, get_fault_ranges, simulate
 
 CFG = SensorConfig()
 FAULT = CFG.default_fault()
@@ -51,23 +51,18 @@ def test_fft_peak_baseline_and_fault(run_40s):
     assert _peak_hz(faulted, RATE) == pytest.approx(65, abs=2)
 
 
-def test_in_fault_exactly_in_window(run_40s):
-    for sample in run_40s:
-        assert sample.in_fault == (20.0 <= sample.t < 30.0), sample.t
-    flags = [s.in_fault for s in run_40s]
-    assert flags.index(True) == 20 * RATE
-    assert len(flags) - flags[::-1].index(True) == 30 * RATE
+def test_default_fault_covers_exactly_20_to_30_s():
+    assert get_fault_ranges(CFG, [FAULT]) == [(range(20 * RATE, 30 * RATE), FAULT)]
 
 
-def test_no_faults_means_never_in_fault():
-    assert not any(s.in_fault for s in _run(CFG, 1, faults=()))
+def test_no_faults_means_no_fault_ranges():
+    assert get_fault_ranges(CFG, []) == []
 
 
-def test_fault_window_is_exact_for_inexact_float_sums():
+def test_fault_range_is_exact_for_inexact_float_sums():
     # 0.2 + 0.1 == 0.30000000000000004: the sample at t = 0.3 must stay outside.
-    samples = _run(CFG, 0.5, faults=(Fault(start=0.2, duration=0.1),))
-    flagged = [i for i, s in enumerate(samples) if s.in_fault]
-    assert flagged == list(range(200, 300))
+    fault = Fault(start=0.2, duration=0.1)
+    assert get_fault_ranges(CFG, [fault]) == [(range(200, 300), fault)]
 
 
 def test_adjacent_inexact_faults_are_not_an_overlap():
