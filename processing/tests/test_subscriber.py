@@ -2,6 +2,8 @@ import json
 import threading
 from dataclasses import dataclass
 
+import pytest
+
 from processing.subscriber import Subscriber, get_first_sample
 
 
@@ -88,3 +90,34 @@ def test_first_sample_after_a_restart():
     # Processing restarted while the sensor was at chunk 6000 (5 minutes in).
     message = {"seq": 6000, "values": [0.0] * 50}
     assert get_first_sample(message) == 300_000
+
+
+VALID = {"sensor_id": "sensor-1", "seq": 0, "t0_ns": 0, "dt_s": 0.001, "values": [1.0]}
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"not json",
+        b"\xff\xfe",
+        b"[1, 2]",
+        json.dumps({**VALID, "seq": "0"}).encode(),
+        json.dumps({**VALID, "values": []}).encode(),
+        json.dumps({**VALID, "values": ["a"]}).encode(),
+        json.dumps({**VALID, "dt_s": 0}).encode(),
+        json.dumps({k: v for k, v in VALID.items() if k != "t0_ns"}).encode(),
+    ],
+)
+def test_invalid_samples_are_counted_and_dropped(payload):
+    subscriber = Subscriber("sensor-1", queue_size=10)
+    subscriber.on_message(None, None, FakeMessage("sensors/sensor-1/samples", payload))
+    assert subscriber.invalid_messages == 1
+    _send_chunk(subscriber, 3)  # a good message right after still gets through
+    assert [m["seq"] for m in _drain(subscriber, 1)] == [3]
+
+
+def test_invalid_truth_is_counted_and_ignored():
+    subscriber = Subscriber("sensor-1", queue_size=10)
+    message = FakeMessage("sensors/sensor-1/truth", b'{"faults": [{"start": 1}]}')
+    subscriber.on_message(None, None, message)
+    assert subscriber.invalid_messages == 1 and subscriber.faults is None

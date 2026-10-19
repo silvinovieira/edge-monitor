@@ -72,7 +72,7 @@ ground truth:
 
 ```
 processing  wrote 1792373064101182922_sensor-1.jsonl.gz (99 windows, 0 anomalous)
-processing  dropped chunks: 0, seq gaps: 0
+processing  dropped chunks: 0, invalid messages: 0, seq gaps: 0
 processing  evaluation: precision 0.95, recall 1.00, F1 0.98, latency 0.50 s (TP 40, FP 2, FN 0)
 ```
 
@@ -182,6 +182,13 @@ request.
   the stream were contiguous, so later timestamps are early by the missing time.
   Inserting the missing samples (or restarting the time base) would fix it. With QoS 1
   and a persistent session it hasn't happened in testing.
+- **A persistent detector baseline.** After a restart, processing learns its
+  baseline again from the first 10 s. If it restarts during a fault, the fault is
+  learned as normal and isn't flagged. Saving the frozen baseline to disk and loading
+  it on start would fix that.
+- **Lossless shutdown.** The few chunks still in processing's queue when it stops are
+  lost, because they were already acknowledged to the broker. Acknowledging only after
+  processing would fix it.
 - **Sensitivity to small faults.** The detector reliably catches the default fault
   (resonance 50 → 65 Hz) but misses frequency shifts below about 8 Hz. Measurements
   and causes are in [processing/README.md](processing/README.md#evaluation).

@@ -126,6 +126,17 @@ time.
   what matters for a live alarm. In practice the loop is about 440 times faster than
   real time, so the queue should stay almost empty. The drop count is logged at
   shutdown, along with every drop as it happens.
+- **Invalid messages are dropped and counted.** A samples message must be JSON with
+  an integer `seq` and `t0_ns`, a positive `dt_s` and a non-empty list of numbers. Any
+  other message on the topic is logged, counted (`invalid messages` at shutdown) and
+  dropped. This matters because an exception in paho's callback kills its network
+  thread: before this check, one malformed message from any client silently stopped
+  all input.
+- **Chunks still queued at shutdown are lost.** paho acknowledges a message to the
+  broker as soon as it reaches the queue, so on SIGTERM the few chunks still in the
+  queue (normally almost none, since the loop is far faster than the stream) are
+  never processed, and the broker won't resend them. Acknowledging only after a chunk
+  has been processed (paho's manual acks) would close that gap.
 - **Gaps in `seq` are logged and counted.** Processing then carries on as if the
   stream were contiguous. Timestamps come from the sample index, so after a gap, later
   timestamps are early by the missing time. Inserting the missing samples (or
@@ -357,6 +368,7 @@ The tests cover:
   is byte-for-byte what the current code writes
 - the subscriber, with fake MQTT messages: arrival order, dropping the oldest chunk
   when the queue is full, counting `seq` gaps, keeping the truth out of the sample
-  queue, and ignoring other sensors
+  queue, ignoring other sensors, and dropping invalid messages (bad JSON, missing or
+  wrongly typed fields) without blocking the valid ones after them
 - the incremental `Evaluator` giving the same result as `evaluate()`
 - reading the configuration from the environment

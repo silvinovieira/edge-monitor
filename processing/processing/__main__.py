@@ -66,8 +66,9 @@ def main() -> None:
     client.loop_stop()
     client.disconnect()
     log.info(
-        "dropped chunks: %d, seq gaps: %d",
+        "dropped chunks: %d, invalid messages: %d, seq gaps: %d",
         subscriber.dropped_messages,
+        subscriber.invalid_messages,
         subscriber.seq_gaps,
     )
     if evaluator:
