@@ -4,12 +4,12 @@ import os
 from dataclasses import dataclass
 
 
-def env_float(name: str, default: float) -> float:
+def _get_env_float(name: str, default: float) -> float:
     value = os.environ.get(name)
     return default if value is None or value == "" else float(value)
 
 
-def env_int(name: str, default: int) -> int:
+def _get_env_int(name: str, default: int) -> int:
     value = os.environ.get(name)
     return default if value is None or value == "" else int(value)
 
@@ -60,15 +60,19 @@ class SensorConfig:
     @classmethod
     def from_env(cls) -> "SensorConfig":
         return cls(
-            sample_rate_hz=env_int("SENSOR_SAMPLE_RATE_HZ", cls.sample_rate_hz),
-            natural_freq_hz=env_float("SENSOR_NATURAL_FREQ_HZ", cls.natural_freq_hz),
-            damping_ratio=env_float("SENSOR_DAMPING_RATIO", cls.damping_ratio),
-            noise_std=env_float("SENSOR_NOISE_STD", cls.noise_std),
-            seed=env_int("SENSOR_SEED", cls.seed),
-            fault_start=env_float("SENSOR_FAULT_START", cls.fault_start),
-            fault_duration=env_float("SENSOR_FAULT_DURATION", cls.fault_duration),
-            fault_freq_scale=env_float("SENSOR_FAULT_FREQ_SCALE", cls.fault_freq_scale),
-            fault_damping_scale=env_float(
+            sample_rate_hz=_get_env_int("SENSOR_SAMPLE_RATE_HZ", cls.sample_rate_hz),
+            natural_freq_hz=_get_env_float(
+                "SENSOR_NATURAL_FREQ_HZ", cls.natural_freq_hz
+            ),
+            damping_ratio=_get_env_float("SENSOR_DAMPING_RATIO", cls.damping_ratio),
+            noise_std=_get_env_float("SENSOR_NOISE_STD", cls.noise_std),
+            seed=_get_env_int("SENSOR_SEED", cls.seed),
+            fault_start=_get_env_float("SENSOR_FAULT_START", cls.fault_start),
+            fault_duration=_get_env_float("SENSOR_FAULT_DURATION", cls.fault_duration),
+            fault_freq_scale=_get_env_float(
+                "SENSOR_FAULT_FREQ_SCALE", cls.fault_freq_scale
+            ),
+            fault_damping_scale=_get_env_float(
                 "SENSOR_FAULT_DAMPING_SCALE", cls.fault_damping_scale
             ),
         )

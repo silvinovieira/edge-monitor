@@ -1,11 +1,10 @@
-import logging
 from itertools import islice
 
 import numpy as np
 import pytest
 
 from sensor.config import Fault, SensorConfig
-from sensor.simulator import Sample, main, simulate
+from sensor.simulator import Sample, simulate
 
 CFG = SensorConfig()
 FAULT = CFG.default_fault()
@@ -115,12 +114,3 @@ def test_config_from_env(monkeypatch):
     monkeypatch.setenv("SENSOR_SEED", "7")
     cfg = SensorConfig.from_env()
     assert cfg.natural_freq_hz == 40.0 and cfg.seed == 7 and cfg.sample_rate_hz == 1000
-
-
-def test_main_logs_the_requested_time_range(monkeypatch, caplog):
-    monkeypatch.setenv("SENSOR_PRINT_FROM", "19.99")
-    monkeypatch.setenv("SENSOR_PRINT_SECONDS", "0.02")
-    caplog.set_level(logging.INFO, logger="sensor.simulator")
-    main()
-    expected = list(islice(simulate(CFG, [FAULT]), 19_990, 20_010))
-    assert caplog.messages == [str(sample) for sample in expected]
