@@ -39,7 +39,7 @@ simulated failures on:
 ```
 INFO sync.worker: uploaded vibration/v1/dt=2026-01-01/hour=00/sensor_id=sensor-1/1767225660000000000_sensor-1.jsonl.gz
 WARNING sync.worker: upload of 1767225720000000000_sensor-1.jsonl.gz failed: simulated failure
-WARNING sync.worker: 1 failures in a row; retrying in 0.9 s
+WARNING sync.worker: failed 1 time(s) in a row; retrying in 0.9 s
 INFO sync.worker: uploaded vibration/v1/dt=2026-01-01/hour=00/sensor_id=sensor-1/1767225720000000000_sensor-1.jsonl.gz
 ```
 

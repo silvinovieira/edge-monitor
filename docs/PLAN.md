@@ -115,7 +115,8 @@ port 4566), `sensor`, `processing` and `sync`; a Dockerfile per service
 **Build**
 - `sensor/sensor/publisher.py`: real-time pacing with absolute deadlines; chunks of 50
   samples to `sensors/<id>/samples` (QoS 1, JSON `{sensor_id, seq, t0, dt, values}`);
-  truth to `sensors/<id>/truth` (`{seq, in_fault}`, derived from `get_fault_ranges`).
+  truth once, retained, to `sensors/<id>/truth` (`{faults: [{start_sample,
+  stop_sample}]}` from `get_fault_ranges`).
 - `processing/processing/subscriber.py`: paho callback → bounded `queue.Queue`; if
   full, drop oldest and count; log `seq` gaps. Truth subscription only when evaluation
   is enabled.

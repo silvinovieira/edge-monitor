@@ -5,6 +5,7 @@ description = "Streaming vibration processing: bounded rolling window, features,
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "numpy>=2.0",
+    "paho-mqtt>=2.1",
 ]
 
 [dependency-groups]

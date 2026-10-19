@@ -31,30 +31,58 @@ class Evaluation:
         return 2 * self.precision * self.recall / total if total else 0.0
 
 
+class Evaluator:
+    """Scores window results one at a time, keeping only counts.
+
+    The fault is given as sample indices [fault_start, fault_stop). A window
+    counts as faulty when at least half of it lies inside the fault.
+    """
+
+    def __init__(
+        self, fault_start: int, fault_stop: int, cfg: ProcessingConfig
+    ) -> None:
+        self._fault_start = fault_start
+        self._fault_stop = fault_stop
+        self._cfg = cfg
+        self._true_positives = self._false_positives = self._false_negatives = 0
+        self._latency_s: float | None = None
+
+    def add(self, result: WindowResult) -> None:
+        overlap = _get_fault_overlap(
+            result, self._fault_start, self._fault_stop, self._cfg
+        )
+        is_faulty = overlap >= 0.5
+        if result.is_anomaly and is_faulty:
+            self._true_positives += 1
+        elif result.is_anomaly:
+            self._false_positives += 1
+        elif is_faulty:
+            self._false_negatives += 1
+        is_during_fault = self._fault_start < result.end_sample <= self._fault_stop
+        if result.is_anomaly and is_during_fault and self._latency_s is None:
+            delay_samples = result.end_sample - self._fault_start
+            self._latency_s = delay_samples / self._cfg.sample_rate_hz
+
+    def get_evaluation(self) -> Evaluation:
+        return Evaluation(
+            self._true_positives,
+            self._false_positives,
+            self._false_negatives,
+            self._latency_s,
+        )
+
+
 def evaluate(
     results: Iterable[WindowResult],
     fault_start: int,
     fault_stop: int,
     cfg: ProcessingConfig,
 ) -> Evaluation:
-    """Compare flags with the fault, given as sample indices [start, stop).
-
-    A window counts as faulty when at least half of it lies inside the fault.
-    """
-    true_positives = false_positives = false_negatives = 0
-    latency_s = None
+    """Score a whole run at once; see `Evaluator`."""
+    evaluator = Evaluator(fault_start, fault_stop, cfg)
     for result in results:
-        is_faulty = _get_fault_overlap(result, fault_start, fault_stop, cfg) >= 0.5
-        if result.is_anomaly and is_faulty:
-            true_positives += 1
-        elif result.is_anomaly:
-            false_positives += 1
-        elif is_faulty:
-            false_negatives += 1
-        is_during_fault = fault_start < result.end_sample <= fault_stop
-        if result.is_anomaly and is_during_fault and latency_s is None:
-            latency_s = (result.end_sample - fault_start) / cfg.sample_rate_hz
-    return Evaluation(true_positives, false_positives, false_negatives, latency_s)
+        evaluator.add(result)
+    return evaluator.get_evaluation()
 
 
 def _get_fault_overlap(

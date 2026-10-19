@@ -107,5 +107,7 @@ def test_fault_too_fast_for_sample_rate_is_rejected():
 def test_config_from_env(monkeypatch):
     monkeypatch.setenv("SENSOR_NATURAL_FREQ_HZ", "40")
     monkeypatch.setenv("SENSOR_SEED", "7")
+    monkeypatch.setenv("SENSOR_MQTT_HOST", "mosquitto")
     cfg = SensorConfig.from_env()
     assert cfg.natural_freq_hz == 40.0 and cfg.seed == 7 and cfg.sample_rate_hz == 1000
+    assert cfg.mqtt_host == "mosquitto" and cfg.mqtt_port == 1883

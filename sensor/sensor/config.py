@@ -50,6 +50,9 @@ class SensorConfig:
     fault_duration: float = 10.0
     fault_freq_scale: float = 1.3
     fault_damping_scale: float = 0.5
+    sensor_id: str = "sensor-1"
+    mqtt_host: str = "localhost"
+    mqtt_port: int = 1883
 
     def __post_init__(self) -> None:
         if self.sample_rate_hz <= 0 or self.natural_freq_hz <= 0:
@@ -75,6 +78,9 @@ class SensorConfig:
             fault_damping_scale=_get_env_float(
                 "SENSOR_FAULT_DAMPING_SCALE", cls.fault_damping_scale
             ),
+            sensor_id=os.environ.get("SENSOR_ID") or cls.sensor_id,
+            mqtt_host=os.environ.get("SENSOR_MQTT_HOST") or cls.mqtt_host,
+            mqtt_port=_get_env_int("SENSOR_MQTT_PORT", cls.mqtt_port),
         )
 
     def default_fault(self) -> Fault:

@@ -21,6 +21,8 @@ class Batch:
     file_name: str
     # JSON-ready records, one per line of the batch file.
     lines: list[dict]
+    # The same windows as results, for live evaluation; not written to disk.
+    windows: list[WindowResult]
 
 
 def make_batches(
@@ -111,4 +113,5 @@ def _build_batch(
     return Batch(
         file_name=f"{start_ns:019d}_{cfg.sensor_id}.jsonl.gz",
         lines=[header, *window_lines, samples_line],
+        windows=windows,
     )

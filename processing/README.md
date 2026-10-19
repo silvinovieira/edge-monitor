@@ -2,8 +2,9 @@
 
 Streaming vibration processing: keeps a bounded rolling window of the sensor's
 acceleration, computes features for each window, flags anomalies, and writes
-compressed 60 s batches to an on-disk spool for the sync service. This version works
-on any iterable of sample chunks. Reading from MQTT comes in a later feature.
+compressed 60 s batches to an on-disk spool for the sync service. It reads the
+sensor's stream from MQTT. The core also works on any iterable of sample chunks, which
+is how the tests and the benchmark use it.
 
 ## Installation
 
@@ -15,6 +16,19 @@ uv sync
 ```
 
 ## Usage
+
+Run the service: subscribe to the sensor on `localhost:1883` (or
+`PROCESSING_MQTT_HOST`) and write batches to `./spool` (or `PROCESSING_SPOOL_DIR`)
+until Ctrl-C or SIGTERM. With evaluation on, it also logs precision and recall against
+the ground truth at shutdown:
+
+```sh
+PROCESSING_EVALUATE=true uv run python -m processing
+```
+
+On shutdown it writes the last, shorter batch, so nothing processed is lost.
+
+As a library:
 
 `process()` takes chunks of samples and yields one `WindowResult(start_sample,
 end_sample, features, is_anomaly)` every 250 samples once the window is full. The
@@ -65,6 +79,10 @@ dataclass:
 | `PROCESSING_SPOOL_DIR` | spool | spool directory, shared with the sync service |
 | `PROCESSING_BATCH_S` | 60 | stream time per batch (s) |
 | `PROCESSING_SUMMARY_RATE_HZ` | 10 | rate of the downsampled samples in each batch (Hz) |
+| `PROCESSING_MQTT_HOST` | localhost | MQTT broker host |
+| `PROCESSING_MQTT_PORT` | 1883 | MQTT broker port |
+| `PROCESSING_QUEUE_SIZE` | 1000 | chunks buffered between MQTT and the loop (50 s) |
+| `PROCESSING_EVALUATE` | false | subscribe to the ground truth and log precision/recall at shutdown |
 
 ## Design
 
@@ -95,6 +113,34 @@ hop (250 ms) of latency.
 **No look-ahead.** `process()` is a generator. It yields a result as soon as the
 window's newest sample arrives, so a result can only depend on past samples. A test
 changes every sample after t = 12 s and checks that no earlier result changes.
+
+## MQTT input and backpressure
+
+paho receives messages on its own network thread and puts them in a bounded
+`queue.Queue` (1000 chunks, 50 s of data). The processing loop takes them out one at a
+time.
+
+- **When the queue is full, the oldest chunk is dropped and counted.** The queue
+  never grows past its limit, so a stalled loop can't exhaust memory. Dropping the
+  oldest data, not the newest, keeps the detector looking at the present, which is
+  what matters for a live alarm. In practice the loop is about 440 times faster than
+  real time, so the queue should stay almost empty. The drop count is logged at
+  shutdown, along with every drop as it happens.
+- **Gaps in `seq` are logged and counted.** Processing then carries on as if the
+  stream were contiguous. Timestamps come from the sample index, so after a gap, later
+  timestamps are early by the missing time. Inserting the missing samples (or
+  restarting the time base) would fix that. It's listed as missing in the root README.
+- **Restarts don't lose data at the broker.** Processing connects with a fixed client
+  id and a persistent session (`clean_session=False`), so while it is down, mosquitto
+  keeps queueing its QoS 1 messages and delivers them when it reconnects. Mosquitto's
+  default limit is 1000 queued messages per client, about 50 s.
+- **Time comes from the stream.** The first message's `t0_ns`, minus its `seq` offset,
+  gives the wall-clock time of sample 0. Every batch timestamp follows from the sample
+  index, so batch boundaries are exact.
+- **Ground truth only for the evaluator.** Processing subscribes to
+  `sensors/<id>/truth` only when `PROCESSING_EVALUATE` is on, and the truth goes only
+  to the `Evaluator`, never to the detector. The evaluator keeps running counts, not a
+  list of results, so live evaluation doesn't grow memory either.
 
 ## Batches and spool
 
@@ -249,10 +295,36 @@ RSS start / end:  36.6 / 39.2 MiB
   2.6 MiB rise between start and end happens once (numpy's FFT setup and allocator),
   not per window.
 
+**The running container.** Measured in the compose run, after several minutes of the
+live 1 kHz stream from MQTT:
+
+| | value |
+|---|---|
+| CPU | 1.3-1.5% of one core |
+| memory (cgroup, `docker stats`) | 25.6 MiB, then 25.8 MiB five minutes later |
+| peak RSS (`VmHWM`) | 43.5 MiB, then 43.6 MiB five minutes later |
+
+Under a hard limit of `--memory 64m --cpus 0.25`, the same image ran against the live
+sensor at 25.8 MiB with no dropped chunks and no OOM kill, and it detected the fault
+(precision 0.95, recall 1.00).
+
 **Verifying on constrained hardware.** Run the same script on the device. The
 tracemalloc peak depends only on the window and batch sizes, so it should match. RSS and
 throughput depend on the CPU and the Python/numpy build. Pin it to one core with
 `taskset -c 0`, and read the process's peak RSS from `VmHWM` in `/proc/<pid>/status`.
+For the running service, start it with a cgroup limit below the device's budget and
+watch for drops and OOM kills:
+
+```sh
+docker run --memory 64m --memory-swap 64m --cpus 0.25 \
+  -e PROCESSING_MQTT_HOST=<broker> edge-monitor-processing
+docker exec <container> grep VmHWM /proc/1/status   # peak RSS
+docker inspect -f '{{.State.OOMKilled}}' <container>
+```
+
+The log line `dropped chunks: N` at shutdown shows whether it kept up. On a bare
+device without Docker, `systemd-run -p MemoryMax=64M -p CPUQuota=25% …` applies the
+same limits.
 A throughput of at least 1000 samples/s, with headroom for the MQTT input and the disk
 writes, is the bar.
 
@@ -283,4 +355,8 @@ The tests cover:
   ones
 - the contract: the committed example batch has the documented lines and fields, and
   is byte-for-byte what the current code writes
+- the subscriber, with fake MQTT messages: arrival order, dropping the oldest chunk
+  when the queue is full, counting `seq` gaps, keeping the truth out of the sample
+  queue, and ignoring other sensors
+- the incremental `Evaluator` giving the same result as `evaluate()`
 - reading the configuration from the environment
