@@ -61,6 +61,5 @@ def _get_fault_overlap(
     result: WindowResult, fault_start: int, fault_stop: int, cfg: ProcessingConfig
 ) -> float:
     """Return the fraction of the window that lies inside the fault."""
-    window_start = result.end_sample - cfg.window_size
-    overlap = min(result.end_sample, fault_stop) - max(window_start, fault_start)
+    overlap = min(result.end_sample, fault_stop) - max(result.start_sample, fault_start)
     return max(overlap, 0) / cfg.window_size

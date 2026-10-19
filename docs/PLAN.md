@@ -69,11 +69,13 @@ throughput and memory footprint; how to run the benchmark.
 
 **Build** (in `processing/processing/`)
 - `downsample.py`: every 100 samples, mean and RMS (10 Hz).
+- `processor.py`: `Processor.add_chunk()` so the batcher can feed the same chunks to
+  the processor and the downsampler; `WindowResult` gets `start_sample`.
 - `batcher.py`: consumes the window results; collects windows + 10 Hz points; flushes
   every 60 s of stream time and on shutdown.
 - `spool_writer.py`: atomic write (tmp → flush → fsync → os.replace → fsync dir);
-  file name `{start_ts_ns}_{seq:08d}_{uuid8}.jsonl.gz`; removes orphan `tmp/` files on
-  startup.
+  file name `{start_ns:019d}_{sensor_id}.jsonl.gz` (deterministic: no counter, no
+  random part); removes orphan `tmp/` files on startup.
 - `docs/spool-contract.md`: directories, file naming, gzip JSONL schema (`header`,
   `window` lines, one `samples_10hz` line), versioning rule.
 - Generate the example batch with the real batcher (script), commit it.
