@@ -2,6 +2,8 @@
 
 One branch and one PR per feature, in this order. Each feature introduces only what it
 uses. Every PR passes ruff and pytest in CI and updates the README.
+Service-specific README sections go in `<service>/README.md`; cross-cutting ones
+(overview, end-to-end, design decisions, production) go in the root `README.md`.
 PR description headings: What and why, How to test, Key decisions, Not included,
 Talking points.
 
@@ -16,17 +18,18 @@ Talking points.
 - `sensor/sensor/config.py`: frozen dataclass from env vars. Defaults: `fs=1000`,
   `f_n_hz=50`, `zeta=0.05`, `noise_std=1.0`, `seed=0`, fault `start=20`, `duration=10`,
   `omega_scale=1.3`, `zeta_scale=0.5`.
-- `sensor/sensor/simulator.py`: `Sample(t, accel, in_fault)`;
-  `simulate(cfg, faults) -> Iterator[Sample]`.
+- `sensor/sensor/simulator.py`: `Sample(time_s, acceleration)`;
+  `simulate(cfg, faults) -> Iterator[Sample]`; ground truth from
+  `get_fault_ranges(cfg, faults)` (sample indices per fault).
   - RK4 on `[x, v]`, `dt = 1/fs`; `F ~ N(0, noise_std)` drawn once per step, held
     constant across the 4 stages.
   - Fault windows half-open `[start, start + duration)`; inside, scale `omega` and `zeta`.
   - Output `a = F - 2*zeta*omega*v - omega**2 * x`.
-- `sensor/scripts/make_fixtures.py`: seeds 0-4, 40 s each, `.npz` (accel float32 +
+- `sensor/scripts/make_fixtures.py`: seeds 0-4, 40 s each, `.npz` (acceleration float32 +
   fault windows) to `docs/contract/fixtures/`. Commit the fixtures.
 
 **Tests:** same seed → identical output; FFT peak ≈ 50 Hz at baseline, ≈ 65 Hz in the
-fault; `in_fault` true exactly in `[20, 30)`.
+fault; fault ranges exactly `[20, 30)`.
 
 **README:** project overview (three services, one paragraph); repository layout;
 how to run the tests; sensor model (equation, parameters, fault injection, assumptions).

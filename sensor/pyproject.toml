@@ -1,0 +1,18 @@
+[project]
+name = "sensor"
+version = "0.1.0"
+description = "Simulated vibration sensor: noise-driven damped oscillator with fault injection."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy>=2.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
