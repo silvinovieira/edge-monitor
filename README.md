@@ -189,7 +189,9 @@ request.
   one sensor.
 - **Production concerns:** TLS and authentication for MQTT, IAM roles for S3,
   non-root containers, health checks and metrics. These are out of scope for the
-  prototype. The production section below discusses them.
+  prototype.
+  [From prototype to production edge deployment](#from-prototype-to-production-edge-deployment)
+  discusses them.
 
 ## With more time
 
@@ -205,6 +207,84 @@ request.
 - **An outage demo** (`make demo`) that pauses LocalStack and shows the spool growing
   and draining, instead of the manual check described in
   [sync/README.md](sync/README.md#how-failures-are-simulated).
+
+## From prototype to production edge deployment
+
+**Runtime.**
+- **What's needed:** the three services are plain Python processes, so any
+  supervisor that restarts them and limits their resources will do.
+- **Small fleet** (a handful of devices that someone can reach): I'd use one systemd
+  unit per service. `Restart=always` handles crashes, and `MemoryMax=` and
+  `CPUQuota=` enforce the budget measured below. Logs go to journald, and the spool
+  sits on a persistent disk. There's nothing extra to install or learn.
+- **Large fleet:** I'd package each service as an AWS IoT Greengrass component. The
+  Greengrass agent costs CPU, memory and setup, but it gives what is hard to build by
+  hand for hundreds of devices: deployments to groups of devices, an identity per
+  device, and short-lived AWS credentials for S3 instead of keys on disk.
+- **What doesn't change:** the services themselves stay the same either way. Only the
+  packaging and supervision differ.
+
+**OTA updates.**
+- **Releases:** every release is versioned and immutable (an image tag or a package
+  version), and the device keeps the previous one.
+- **Health check:** after an update, the new version must pass a simple check within
+  a few minutes: processing writes a batch and sync uploads one. If it fails, the
+  device rolls back on its own. Greengrass deployments can roll back on failure; with
+  systemd, the same thing is a symlink switched back to the previous version.
+- **Rollout:** a release reaches a small group of devices first, then the rest.
+- **The spool format** needs care, because an update can find batches from the old
+  version still waiting in `ready/`. The [spool contract](docs/spool-contract.md#versioning)
+  says new fields are compatible and anything else bumps the version. A new sync
+  must therefore keep reading every version that might still be on disk, and a
+  format change ships the reader (sync) before the writer (processing).
+
+**Observability over an intermittent link.** A device that can't reach the cloud
+can't be scraped for metrics, so it has to keep its own. Each service would count:
+- the queue depth in processing
+- the age of the oldest batch in `ready/`
+- dropped chunks, invalid messages and upload failures
+- free disk space
+
+Only the shutdown counters exist today; the rest is future work. The metrics would
+travel with the data, as extra fields in each batch header: the contract allows new
+fields without a version bump, and they arrive in order when the link returns. A
+separate, tiny heartbeat goes up every few minutes, and the cloud raises an alert when
+it stops (for example, a CloudWatch alarm on missing data). This tells two failures
+apart:
+- **"Offline":** no heartbeat at all.
+- **"Online but falling behind":** the heartbeat arrives, but the oldest batch keeps
+  getting older or drops are rising.
+
+Anomaly alerts that can't wait for the next 60 s batch would use the same small
+channel.
+
+**Sizing for real hardware.** The numbers in this repository come from a Xeon cloud
+VM, and they don't transfer to an edge CPU, so I'd measure on the target device:
+1. **Throughput:** run `scripts/benchmark.py` pinned to one core with `taskset -c 0`.
+   It must stay well above 1000 samples/s per sensor, with headroom for MQTT and the
+   disk writes.
+2. **Memory:** run the service under a cgroup limit and read its peak RSS from
+   `VmHWM`. Then set `MemoryMax=` with a margin above that.
+3. **Disk:** apply bytes/s × longest expected outage × safety factor. With today's
+   format that is about 470 MB per sensor for a week offline at 2× safety.
+
+The measured figures, and how to repeat each measurement, are in
+[processing/README.md](processing/README.md#throughput-and-memory) and
+[processing/README.md](processing/README.md#batches-and-spool).
+
+**Security.**
+- **Credentials:** each device gets its own X.509 certificate, and S3 access goes
+  through short-lived credentials tied to it, never long-lived keys. The role can only
+  write under the device's own `sensor_id=` prefix.
+- **MQTT:** the broker listens only on localhost when the sensor is on the same
+  device. If the sensor is on the network, the broker uses TLS with client
+  certificates.
+- **Services:** each runs as its own non-root user. Processing can write only the
+  spool, and sync can read it and delete from `ready/`.
+
+None of this changes the design: the
+[delivery guarantees](sync/README.md#delivery-guarantees) and the bounded memory hold
+the same way in production.
 
 ## License
 
