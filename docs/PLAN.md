@@ -86,8 +86,8 @@ throughput and memory footprint; how to run the benchmark.
 durability (atomic writes, fsync); disk sizing (bytes/s × outage × safety factor).
 
 ## 4. `feat/sync-worker`
-**Introduces:** `sync/` uv project (boto3; dev: pytest, ruff, moto[s3]); `sync` added to
-CI matrix.
+**Introduces:** `sync/` uv project (boto3, numpy for the seeded jitter; dev: pytest,
+ruff, moto[s3]); `sync` added to CI matrix.
 
 **Build** (in `sync/sync/`)
 - `spool_reader.py`: lists `ready/` oldest first; removes exactly the given path.

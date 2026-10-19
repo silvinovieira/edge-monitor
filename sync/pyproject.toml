@@ -1,0 +1,19 @@
+[project]
+name = "sync"
+version = "0.1.0"
+description = "Uploads spooled vibration batches to S3, retrying with backoff during outages."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "boto3>=1.34",
+    "numpy>=2.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0", "ruff>=0.6", "moto[s3]>=5.0"]
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
