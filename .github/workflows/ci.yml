@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [sensor, processing]
+        service: [sensor, processing, sync]
     defaults:
       run:
         working-directory: ${{ matrix.service }}

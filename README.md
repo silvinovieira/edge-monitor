@@ -25,13 +25,14 @@ The project is built one feature at a time; the order is in [`docs/PLAN.md`](doc
 |---|---|---|
 | sensor | Oscillator simulator with fault injection; `python -m sensor.simulator` prints one second of samples. MQTT publishing not yet built. | [sensor/README.md](sensor/README.md) |
 | processing | Rolling window, features, anomaly detector and evaluation over any stream of sample chunks; 60 s gzip JSONL batches written atomically to the spool; benchmark script. MQTT input not yet built. | [processing/README.md](processing/README.md) |
-| sync | Not yet built. | |
+| sync | Uploads spooled batches to S3 oldest first, with idempotent keys, exponential backoff with full jitter, and simulated failures; `python -m sync`. Not yet in Docker Compose. | [sync/README.md](sync/README.md) |
 
 ## Repository layout
 
 ```
 sensor/                    uv project: vibration sensor simulator
 processing/                uv project: rolling window, features, anomaly detection
+sync/                      uv project: spool → S3 uploader with retries
 docs/
   PLAN.md                  feature order
   spool-contract.md        batch file format shared by processing and sync
@@ -44,7 +45,7 @@ docs/
 
 Requirements: [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 if needed).
 Each service is an independent uv project with its own dependencies and tests. Run the
-checks from each service directory (`sensor`, `processing`):
+checks from each service directory (`sensor`, `processing`, `sync`):
 
 ```sh
 cd sensor
@@ -74,6 +75,11 @@ request.
   [`docs/spool-contract.md`](docs/spool-contract.md). The cost is disk space during
   outages (about 34 MB per sensor per day) and up to one minute of delay before data
   leaves the device.
+- **At-least-once upload with idempotent S3 keys.** Sync deletes a batch only after S3
+  confirms it, and the key is derived from the batch's deterministic file name. A
+  crash or retry can upload a batch twice, but it overwrites the same object, so S3
+  never holds duplicates. Keys are partitioned by event time
+  (`vibration/v1/dt=…/hour=…/sensor_id=…/`), so late data lands where it belongs.
 - **Determinism everywhere.** All randomness goes through a seeded
   `numpy.random.Generator`, so every run and test is reproducible.
 
