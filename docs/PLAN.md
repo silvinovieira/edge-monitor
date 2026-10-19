@@ -18,14 +18,14 @@ Talking points.
 - `sensor/sensor/config.py`: frozen dataclass from env vars. Defaults: `fs=1000`,
   `f_n_hz=50`, `zeta=0.05`, `noise_std=1.0`, `seed=0`, fault `start=20`, `duration=10`,
   `omega_scale=1.3`, `zeta_scale=0.5`.
-- `sensor/sensor/simulator.py`: `Sample(t, accel)`;
+- `sensor/sensor/simulator.py`: `Sample(time_s, acceleration)`;
   `simulate(cfg, faults) -> Iterator[Sample]`; ground truth from
   `get_fault_ranges(cfg, faults)` (sample indices per fault).
   - RK4 on `[x, v]`, `dt = 1/fs`; `F ~ N(0, noise_std)` drawn once per step, held
     constant across the 4 stages.
   - Fault windows half-open `[start, start + duration)`; inside, scale `omega` and `zeta`.
   - Output `a = F - 2*zeta*omega*v - omega**2 * x`.
-- `sensor/scripts/make_fixtures.py`: seeds 0-4, 40 s each, `.npz` (accel float32 +
+- `sensor/scripts/make_fixtures.py`: seeds 0-4, 40 s each, `.npz` (acceleration float32 +
   fault windows) to `docs/contract/fixtures/`. Commit the fixtures.
 
 **Tests:** same seed → identical output; FFT peak ≈ 50 Hz at baseline, ≈ 65 Hz in the

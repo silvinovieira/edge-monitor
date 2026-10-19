@@ -33,7 +33,8 @@ SENSOR_SEED=3 SENSOR_FAULT_START=0.5 uv run python -m sensor.simulator
 ```
 
 In your own code, `simulate()` is a generator that yields one
-`Sample(t, accel)` at a time, forever. The caller decides how much to take:
+`Sample(time_s, acceleration)` at a time, forever. The caller decides how much to
+take:
 
 ```python
 from itertools import islice
@@ -98,7 +99,7 @@ disagree.
 
 **Measured behaviour** (default parameters, seeds 0–4, averaged 1 s Hann periodograms):
 
-| | dominant frequency | accel std |
+| | dominant frequency | acceleration std |
 |---|---|---|
 | baseline (2–20 s) | 49–51 Hz | 1.57–1.67 |
 | fault (21–30 s) | 64–65 Hz | 2.16–2.35 |

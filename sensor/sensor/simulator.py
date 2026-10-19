@@ -27,8 +27,8 @@ MAX_RADIANS_PER_STEP = 1.0
 
 @dataclass(frozen=True)
 class Sample:
-    t: float
-    accel: float
+    time_s: float
+    acceleration: float
 
 
 def _get_acceleration(
@@ -117,8 +117,8 @@ def _generate_samples(
         params = (forcing, angular_freq, damping_ratio)
         # Time from the integer index, so it never drifts from summing step_s.
         yield Sample(
-            t=index / cfg.sample_rate_hz,
-            accel=_get_acceleration(state, *params),
+            time_s=index / cfg.sample_rate_hz,
+            acceleration=_get_acceleration(state, *params),
         )
         state = _step_rk4(state, step_s, *params)
 

@@ -15,11 +15,11 @@ def _run(cfg: SensorConfig, seconds: float, faults=(FAULT,)) -> list[Sample]:
     return list(islice(simulate(cfg, faults), int(seconds * cfg.sample_rate_hz)))
 
 
-def _peak_hz(accel: np.ndarray, sample_rate_hz: int) -> float:
+def _peak_hz(acceleration: np.ndarray, sample_rate_hz: int) -> float:
     # Average 1 s Hann periodograms: one noisy FFT of a resonance can peak
     # a few Hz off, the average is stable.
     segment = sample_rate_hz
-    frames = accel[: len(accel) // segment * segment].reshape(-1, segment)
+    frames = acceleration[: len(acceleration) // segment * segment].reshape(-1, segment)
     power = (np.abs(np.fft.rfft(frames * np.hanning(segment), axis=1)) ** 2).mean(0)
     freqs = np.fft.rfftfreq(segment, 1 / sample_rate_hz)
     return float(freqs[1:][np.argmax(power[1:])])
@@ -31,22 +31,22 @@ def run_40s() -> list[Sample]:
 
 
 def test_same_seed_gives_identical_output():
-    first = [s.accel for s in _run(CFG, 2)]
-    second = [s.accel for s in _run(CFG, 2)]
+    first = [s.acceleration for s in _run(CFG, 2)]
+    second = [s.acceleration for s in _run(CFG, 2)]
     assert first == second
 
 
 def test_different_seed_gives_different_output():
-    seed_0 = [s.accel for s in _run(CFG, 1)]
-    seed_1 = [s.accel for s in _run(SensorConfig(seed=1), 1)]
+    seed_0 = [s.acceleration for s in _run(CFG, 1)]
+    seed_1 = [s.acceleration for s in _run(SensorConfig(seed=1), 1)]
     assert seed_0 != seed_1
 
 
 def test_fft_peak_baseline_and_fault(run_40s):
-    accel = np.array([s.accel for s in run_40s])
+    acceleration = np.array([s.acceleration for s in run_40s])
     # Skip the first 2 s (start-up transient from rest) and the fault edges.
-    baseline = accel[2 * RATE : 20 * RATE]
-    faulted = accel[21 * RATE : 30 * RATE]
+    baseline = acceleration[2 * RATE : 20 * RATE]
+    faulted = acceleration[21 * RATE : 30 * RATE]
     assert _peak_hz(baseline, RATE) == pytest.approx(50, abs=2)
     assert _peak_hz(faulted, RATE) == pytest.approx(65, abs=2)
 
