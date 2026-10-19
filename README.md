@@ -24,15 +24,17 @@ The project is built one feature at a time; the order is in [`docs/PLAN.md`](doc
 | Service | Today | Docs |
 |---|---|---|
 | sensor | Oscillator simulator with fault injection; `python -m sensor.simulator` prints one second of samples. MQTT publishing not yet built. | [sensor/README.md](sensor/README.md) |
-| processing | Not yet built. | |
+| processing | Rolling window, features, anomaly detector and evaluation over any stream of sample chunks; benchmark script. MQTT input and spool output not yet built. | [processing/README.md](processing/README.md) |
 | sync | Not yet built. | |
 
 ## Repository layout
 
 ```
 sensor/                    uv project: vibration sensor simulator
+processing/                uv project: rolling window, features, anomaly detection
 docs/
   PLAN.md                  feature order
+  contract/fixtures/       sensor recordings that processing is tested against
 .github/workflows/ci.yml   ruff + pytest for each service
 ```
 
@@ -40,7 +42,7 @@ docs/
 
 Requirements: [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 if needed).
 Each service is an independent uv project with its own dependencies and tests. Run the
-checks from the service directory:
+checks from each service directory (`sensor`, `processing`):
 
 ```sh
 cd sensor
@@ -59,6 +61,11 @@ request.
   and lockfile, and never imports another service. They can be deployed, versioned and
   tested separately. The cost is some duplicated boilerplate (config loading, logging
   setup).
+- **Recordings as the contract between sensor and processing.** Processing never
+  imports the sensor, so it is tested against committed sensor output
+  (`docs/contract/fixtures/`, 750 KB). The files are byte-for-byte reproducible from
+  `sensor/scripts/make_fixtures.py`. The cost is regenerating them when the simulator
+  changes.
 - **Determinism everywhere.** All randomness goes through a seeded
   `numpy.random.Generator`, so every run and test is reproducible.
 

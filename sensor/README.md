@@ -120,6 +120,21 @@ disagree.
 - When the parameters change at a fault boundary, the state carries over continuously.
   The physical system changes, but it doesn't jump.
 
+## Fixtures
+
+`scripts/make_fixtures.py` records 40 s of the default configuration for seeds 0-4
+into `docs/contract/fixtures/seed_<seed>.npz`. Processing tests and benchmarks run
+against these files without importing this package. Each file holds `acceleration`
+(float32), `sample_rate_hz`, and the fault as sample indices `fault_start` and
+`fault_stop` (from `get_fault_ranges`). The script ignores environment variables, so
+it always regenerates the same bytes:
+
+```sh
+uv run python scripts/make_fixtures.py
+```
+
+Rerun it, and commit the result, whenever the simulator's output changes.
+
 ## Development
 
 ```sh
